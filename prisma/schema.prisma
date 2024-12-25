@@ -1,0 +1,250 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String       @id @default(cuid())
+  email         String       @unique
+  name          String?
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  accounts      Account[]
+  restaurants   Restaurant[]
+  sessions      Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Restaurant {
+  id          String            @id @default(cuid())
+  name        String
+  location    String?
+  contactInfo String?
+  ownerId     String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  Analytics   Analytics[]
+  menus       Menu[]
+  qrCodes     QRCode[]
+  owner       User              @relation(fields: [ownerId], references: [id])
+  tables      RestaurantTable[]
+}
+
+model Menu {
+  id           String     @id @default(cuid())
+  name         String
+  language     String
+  restaurantId String
+  startTime    DateTime?
+  endTime      DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id])
+  menuItems    MenuItem[]
+}
+
+model MenuItem {
+  id            String                @id @default(cuid())
+  name          String
+  description   String?
+  basePrice     Float
+  menuId        String
+  category      String?
+  isAvailable   Boolean               @default(true)
+  availableFrom DateTime?
+  availableTo   DateTime?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  Analytics     Analytics[]
+  menu          Menu                  @relation(fields: [menuId], references: [id])
+  addons        MenuItemAddon[]
+  images        MenuItemImage[]
+  translations  MenuItemTranslation[]
+  variants      MenuItemVariant[]
+  orderItems    OrderItem[]
+}
+
+model MenuItemVariant {
+  id         String      @id @default(cuid())
+  name       String
+  price      Float
+  menuItemId String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  menuItem   MenuItem    @relation(fields: [menuItemId], references: [id])
+  orderItems OrderItem[]
+}
+
+model MenuItemAddon {
+  id         String      @id @default(cuid())
+  name       String
+  price      Float
+  available  Boolean     @default(true)
+  menuItemId String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  menuItem   MenuItem    @relation(fields: [menuItemId], references: [id])
+  orderItems OrderItem[]
+}
+
+model MenuItemImage {
+  id         String   @id @default(cuid())
+  url        String
+  altText    String?
+  menuItemId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+}
+
+model MenuItemTranslation {
+  id          String   @id @default(cuid())
+  menuItemId  String
+  language    String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  menuItem    MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@unique([menuItemId, language])
+}
+
+model Analytics {
+  id           String             @id @default(cuid())
+  restaurantId String
+  menuItemId   String?
+  eventType    AnalyticsEventType
+  value        Int                @default(1)
+  metadata     Json?
+  createdAt    DateTime           @default(now())
+  menuItem     MenuItem?          @relation(fields: [menuItemId], references: [id])
+  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id])
+}
+
+model RestaurantTable {
+  id           String      @id @default(cuid())
+  tableNumber  String
+  restaurantId String
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  status       TableStatus @default(AVAILABLE)
+  zone         String?
+  capacity     Int         @default(4)
+  isActive     Boolean     @default(true)
+  lastOccupied DateTime?
+  orders       Order[]
+  qrCode       QRCode?
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, tableNumber])
+}
+
+model QRCode {
+  id           String          @id @default(cuid())
+  uniqueCode   String          @unique
+  restaurantId String
+  tableId      String          @unique
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  imageData    String?
+  targetUrl    String?
+  restaurant   Restaurant      @relation(fields: [restaurantId], references: [id])
+  table        RestaurantTable @relation(fields: [tableId], references: [id])
+  scans        QRCodeScan[]
+}
+
+model QRCodeScan {
+  id         String   @id @default(cuid())
+  qrCodeId   String
+  scannedAt  DateTime @default(now())
+  ipAddress  String?
+  deviceInfo String?
+  qrCode     QRCode   @relation(fields: [qrCodeId], references: [id])
+}
+
+model Order {
+  id         String          @id @default(cuid())
+  tableId    String
+  totalPrice Float
+  status     OrderStatus
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  table      RestaurantTable @relation(fields: [tableId], references: [id])
+  orderItems OrderItem[]
+}
+
+model OrderItem {
+  id                String           @id @default(cuid())
+  orderId           String
+  menuItemId        String
+  quantity          Int
+  price             Float
+  createdAt         DateTime         @default(now())
+  menuItemVariantId String?
+  menuItemAddonId   String?
+  MenuItemAddon     MenuItemAddon?   @relation(fields: [menuItemAddonId], references: [id])
+  menuItem          MenuItem         @relation(fields: [menuItemId], references: [id])
+  MenuItemVariant   MenuItemVariant? @relation(fields: [menuItemVariantId], references: [id])
+  order             Order            @relation(fields: [orderId], references: [id])
+}
+
+enum AnalyticsEventType {
+  QR_SCAN
+  MENU_VIEW
+  ITEM_VIEW
+}
+
+enum OrderStatus {
+  PENDING
+  PREPARING
+  COMPLETED
+  CANCELLED
+}
+
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  MAINTENANCE
+}
